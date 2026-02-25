@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tetris - Human-Like Autopilot</title>
+    <title>Tetris - Demo Mode & Autopilot</title>
     <style>
         body {
             display: flex; flex-direction: column; align-items: center;
@@ -19,9 +19,10 @@
         .stat-label { font-size: 11px; color: #888; text-transform: uppercase; }
         .stat-value { font-size: 22px; font-weight: bold; color: #00d4ff; }
         
-        /* Autopilot Active State */
+        /* Autopilot/Demo Active State */
         .auto-active { border-color: #ffeb3b; box-shadow: 0 0 15px rgba(255, 235, 59, 0.4); }
         #auto-timer { color: #ffeb3b; font-variant-numeric: tabular-nums; }
+        .demo-banner { color: #ffeb3b; font-weight: bold; font-size: 12px; margin-bottom: 5px; }
 
         table { border-collapse: collapse; background-color: #000; border: 4px solid #333; transition: background 0.2s; }
         .autopilot-bg { background-color: #1a1800; border-color: #ffeb3b; }
@@ -37,7 +38,6 @@
         .color-4 { background-color: #f0a000; border: 2px inset #ffcf70; }
         .color-5 { background-color: #0000f0; border: 2px inset #7070ff; }
         .color-6 { background-color: #f00000; border: 2px inset #ff7070; }
-        .ghost { opacity: 0.2; border: 1px dashed white !important; }
 
         button { padding: 10px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px; font-weight: bold; }
         button:hover { background: #555; }
@@ -45,6 +45,7 @@
 </head>
 <body>
 
+    <div id="demo-msg" class="demo-banner">DEMO MODE: PRESS ANY KEY TO PLAY</div>
     <div class="game-container">
         <div class="side-panel">
             <div class="stat-box" id="level-box">
@@ -70,10 +71,6 @@
                 <table id="preview-table"></table>
             </div>
             <button onclick="resetGame()">New Game</button>
-            <div class="stat-box">
-                <div class="stat-label">High Scores</div>
-                <ul id="high-scores" style="list-style:none; padding:0; font-size:12px; text-align:left;"></ul>
-            </div>
         </div>
     </div>
 
@@ -91,18 +88,21 @@ var field = {
     table: null, speed: 500, level: 1, isRunning: false,
     score: 0, timer: null, autoCharges: 3,
     isAutoActive: false, autoTimeLeft: 0, autoInterval: null,
+    isDemoMode: false,
 
     init: function() {
         this.table = document.getElementById('world');
         this.resetInternalState();
         this.renderGrids();
-        this.updateHighScoresUI();
+        this.startDemo(); // Start in Demo Mode automatically
     },
 
     resetInternalState: function() {
         this.score = 0; this.level = 1; this.speed = 500; this.autoCharges = 3;
         this.content = Array.from({length: this.width}, () => Array(this.height).fill(false));
         this.nextPieceData = pieces[Math.floor(Math.random() * pieces.length)];
+        this.isDemoMode = false;
+        document.getElementById('demo-msg').style.visibility = 'hidden';
         this.updateUI();
     },
 
@@ -120,12 +120,26 @@ var field = {
         }
     },
 
+    startDemo: function() {
+        this.isDemoMode = true;
+        this.isAutoActive = true;
+        this.isRunning = true;
+        document.getElementById('demo-msg').style.visibility = 'visible';
+        document.getElementById('auto-box').classList.add('auto-active');
+        document.getElementById('world').classList.add('autopilot-bg');
+        this.addPiece();
+        this.step();
+    },
+
     addPiece: function() {
         const pData = this.nextPieceData;
         this.nextPieceData = pieces[Math.floor(Math.random() * pieces.length)];
         this.drawPreview();
         this.piece = new Piece(pData.shape, pData.color, this);
-        if (!this.piece.canMove(0, 0)) { this.gameOver(); return false; }
+        if (!this.piece.canMove(0, 0)) { 
+            if(this.isDemoMode) { this.resetInternalState(); this.startDemo(); return; } 
+            this.gameOver(); return false; 
+        }
         this.piece.markMe();
         return true;
     },
@@ -143,10 +157,7 @@ var field = {
 
     step: function() {
         if (!this.isRunning) return;
-        
-        if (this.isAutoActive) {
-            this.runAutoLogic();
-        }
+        if (this.isAutoActive) this.runAutoLogic();
 
         if (this.piece) {
             if (!this.piece.move(0, 1)) {
@@ -161,31 +172,23 @@ var field = {
 
     runAutoLogic: function() {
         if (!this.piece) return;
-        
-        // Find best target if we don't have one
-        if (!this.piece.target) {
-            this.piece.target = this.piece.calculateBestMove();
-        }
+        if (!this.piece.target) this.piece.target = this.piece.calculateBestMove();
 
-        // Simulate human inputs (one action per game step)
         if (this.piece.rotation !== this.piece.target.rot) {
             this.piece.rotate();
         } else if (this.piece.x < this.piece.target.x) {
             this.piece.move(1, 0);
         } else if (this.piece.x > this.piece.target.x) {
             this.piece.move(-1, 0);
-        } else {
-            // In position - let it drop or hard drop if almost there
-            if (this.piece.canMove(0, 1)) this.piece.move(0, 1);
         }
     },
 
     startAutopilot: function() {
+        if (this.isDemoMode) return;
         if (this.autoCharges > 0 && !this.isAutoActive) {
             this.autoCharges--;
             this.isAutoActive = true;
             this.autoTimeLeft = 5.0;
-            
             document.getElementById('auto-box').classList.add('auto-active');
             document.getElementById('world').classList.add('autopilot-bg');
             document.getElementById('auto-timer').style.display = 'block';
@@ -201,10 +204,12 @@ var field = {
 
     stopAutopilot: function() {
         this.isAutoActive = false;
+        this.isDemoMode = false;
         clearInterval(this.autoInterval);
         document.getElementById('auto-box').classList.remove('auto-active');
         document.getElementById('world').classList.remove('autopilot-bg');
         document.getElementById('auto-timer').style.display = 'none';
+        document.getElementById('demo-msg').style.visibility = 'hidden';
     },
 
     checkLines: function() {
@@ -238,17 +243,12 @@ var field = {
     updateUI: function() {
         document.getElementById('score').innerText = this.score;
         document.getElementById('level').innerText = this.level;
-        document.getElementById('auto-count').innerText = this.autoCharges;
+        document.getElementById('auto-count').innerText = this.isDemoMode ? "∞" : this.autoCharges;
     },
 
     gameOver: function() {
         this.isRunning = false; this.stopAutopilot();
         alert("Game Over! Score: " + this.score);
-        this.updateHighScoresUI();
-    },
-
-    updateHighScoresUI: function() {
-        // ... (Local storage logic same as before)
     }
 };
 
@@ -318,15 +318,14 @@ function Piece(shape, colorIndex, field) {
                 if (this.shapeState(x, y, this.rotation) && this.y+y >= 0) this.field.content[this.x+x][this.y+y] = this.colorIndex;
     };
 
-    // AI Heuristic: Find the best target x and rotation
     this.calculateBestMove = function() {
         let bestX = 0, bestRot = 0, bestScore = -1000000;
         for (let r = 0; r < 4; r++) {
-            for (let tx = 0; tx < this.field.width; tx++) {
+            for (let tx = -2; tx < this.field.width; tx++) {
                 let tempX = this.x; this.x = tx; 
                 if (this.canMove(0, 0, r)) {
                     let gy = 0; while (this.canMove(0, gy + 1, r)) gy++;
-                    let score = gy * 10; // Simple: deeper is better
+                    let score = gy * 10 - (Math.abs(tx - 4)); // Prefer middle if depth is equal
                     if (score > bestScore) { bestScore = score; bestX = tx; bestRot = r; }
                 }
                 this.x = tempX;
@@ -337,10 +336,23 @@ function Piece(shape, colorIndex, field) {
 }
 
 function resetGame() {
-    clearTimeout(field.timer); field.init(); field.isRunning = true; field.addPiece(); field.step();
+    clearTimeout(field.timer); 
+    field.stopAutopilot();
+    field.init(); 
+    field.isDemoMode = false;
+    field.isRunning = true; 
+    field.addPiece(); 
+    field.step();
 }
 
 window.onkeydown = (e) => {
+    // If demo is running, any key press takes over control
+    if (field.isDemoMode) {
+        field.stopAutopilot();
+        resetGame();
+        return;
+    }
+
     if (!field.isRunning || field.isAutoActive) return;
     if (e.keyCode === 37) field.piece.move(-1, 0);
     if (e.keyCode === 39) field.piece.move(1, 0);
