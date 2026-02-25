@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tetris JS - Enhanced</title>
+    <title>Tetris JS - Full Color</title>
     <style>
         body {
             display: flex;
@@ -12,32 +12,16 @@
             height: 100vh;
             background-color: #f0f0f0;
             margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', sans-serif;
         }
-        .controls {
-            margin-bottom: 15px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        button {
-            padding: 8px 15px;
-            cursor: pointer;
-            background-color: #333;
-            color: white;
-            border: none;
-            border-radius: 4px;
-        }
-        button:hover { background-color: #555; }
-        .score-board {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
+        .controls { margin-bottom: 15px; display: flex; gap: 10px; }
+        button { padding: 8px 15px; cursor: pointer; background-color: #333; color: white; border: none; border-radius: 4px; }
+        .score-board { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+        
         table {
             border-collapse: collapse;
-            background-color: white;
-            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            background-color: #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
             border: 2px solid #333;
         }
         td {
@@ -45,16 +29,24 @@
             height: 25px;
             border: 1px solid #eee;
         }
-        .black { 
-            background-color: #333; 
-            border: 1px solid #000;
-        }
+
+        /* Piece Colors */
+        .color-0 { background-color: #00f0f0; border: 2px inset #70ffff; } /* I */
+        .color-1 { background-color: #a000f0; border: 2px inset #e070ff; } /* T */
+        .color-2 { background-color: #00f000; border: 2px inset #70ff70; } /* S */
+        .color-3 { background-color: #f0f000; border: 2px inset #ffff70; } /* O */
+        .color-4 { background-color: #f0a000; border: 2px inset #ffcf70; } /* L */
+        .color-5 { background-color: #0000f0; border: 2px inset #7070ff; } /* J */
+        .color-6 { background-color: #f00000; border: 2px inset #ff7070; } /* Z */
+
         .paused-overlay {
             position: absolute;
             font-size: 40px;
-            color: rgba(0,0,0,0.5);
+            font-weight: bold;
+            color: rgba(0,0,0,0.3);
             pointer-events: none;
             display: none;
+            z-index: 10;
         }
     </style>
 </head>
@@ -71,13 +63,19 @@
     <table id="world"></table>
 
 <script type="text/javascript">
+// Added color indices to pieces
 const pieces = [
-    ['xxxx'], [' x ', 'xxx'], [' xx', 'xx '], 
-    ['xx', 'xx'], ['  x','xxx'], ['x  ','xxx']
+    { shape: ['xxxx'], color: 0 }, 
+    { shape: [' x ', 'xxx'], color: 1 }, 
+    { shape: [' xx', 'xx '], color: 2 }, 
+    { shape: ['xx', 'xx'], color: 3 }, 
+    { shape: ['  x','xxx'], color: 4 }, 
+    { shape: ['x  ','xxx'], color: 5 },
+    { shape: ['xx ', ' xx'], color: 6 }
 ];
 
 var field = {
-    content: [],
+    content: [], // Now stores the color index or false
     width: 10,
     height: 20,
     piece: null,
@@ -115,8 +113,8 @@ var field = {
     },
     
     addPiece: function() {
-        var shapeIdx = Math.floor(Math.random() * pieces.length);
-        this.piece = new Piece(pieces[shapeIdx], this);
+        var pData = pieces[Math.floor(Math.random() * pieces.length)];
+        this.piece = new Piece(pData.shape, pData.color, this);
         if (!this.piece.canMove(0, 0)) {
             alert("Game Over! Final Score: " + this.score);
             this.isRunning = false;
@@ -145,12 +143,12 @@ var field = {
         for (var y = this.height - 1; y >= 0; y--) {
             var isFull = true;
             for (var x = 0; x < this.width; x++) {
-                if (!this.content[x][y]) { isFull = false; break; }
+                if (this.content[x][y] === false) { isFull = false; break; }
             }
             if (isFull) {
                 linesCleared++;
                 this.removeLine(y);
-                y++; // Re-check same row index after shift
+                y++; 
             }
         }
         if (linesCleared > 0) this.updateScore(linesCleared * 100);
@@ -165,10 +163,9 @@ var field = {
                 cell.className = upperCell.className;
             }
         }
-        // Clear top line
         for (var x = 0; x < this.width; x++) {
             this.content[x][0] = false;
-            this.unblack(x, 0);
+            this.getCell(x, 0).className = '';
         }
     },
 
@@ -188,19 +185,20 @@ var field = {
         return this.table.rows[y].cells[x];
     },
     
-    black: function(x, y) {
+    paint: function(x, y, colorIndex) {
         var cell = this.getCell(x, y);
-        if (cell) cell.className = 'black';
+        if (cell) cell.className = 'color-' + colorIndex;
     },
     
-    unblack: function(x, y) {
+    unpaint: function(x, y) {
         var cell = this.getCell(x, y);
         if (cell) cell.className = '';
     }
 };
 
-function Piece(shape, field) {
+function Piece(shape, colorIndex, field) {
     this.shape = shape;
+    this.colorIndex = colorIndex;
     this.field = field;
     this.x = 4;
     this.y = 0;
@@ -237,7 +235,7 @@ function Piece(shape, field) {
                     var nx = this.x + ax + x;
                     var ny = this.y + ay + y;
                     if (nx < 0 || nx >= this.field.width || ny >= this.field.height) return false;
-                    if (ny >= 0 && this.field.content[nx][ny]) return false;
+                    if (ny >= 0 && this.field.content[nx][ny] !== false) return false;
                 }
             }
         }
@@ -268,13 +266,13 @@ function Piece(shape, field) {
     this.markMe = function() {
        for(var y = 0; y < this.getHeight(); y++)
            for(var x = 0; x < this.getWidth(); x++)
-               if (this.shapeState(x, y)) this.field.black(this.x + x, this.y + y);
+               if (this.shapeState(x, y)) this.field.paint(this.x + x, this.y + y, this.colorIndex);
     };
 
     this.unmarkMe = function() {
        for(var y = 0; y < this.getHeight(); y++)
            for(var x = 0; x < this.getWidth(); x++)
-               if (this.shapeState(x, y)) this.field.unblack(this.x + x, this.y + y);
+               if (this.shapeState(x, y)) this.field.unpaint(this.x + x, this.y + y);
     };
     
     this.fix = function() {
@@ -283,7 +281,10 @@ function Piece(shape, field) {
                if (this.shapeState(x, y)) {
                    var fx = this.x + x;
                    var fy = this.y + y;
-                   if (fy >= 0) this.field.content[fx][fy] = true;
+                   if (fy >= 0) {
+                       this.field.content[fx][fy] = this.colorIndex;
+                       this.field.paint(fx, fy, this.colorIndex);
+                   }
                }
            }
        }
@@ -315,7 +316,7 @@ window.onload = function() {
             case 37: field.piece.move(-1, 0); break; // Left
             case 39: field.piece.move(1, 0);  break; // Right
             case 40: field.piece.move(0, 1);  break; // Down
-            case 38: field.piece.rotate();    break; // Up
+            case 38: field.piece.rotate();    break; // Up (Rotate)
             case 32: field.piece.hardDrop();  break; // Space
         }
     };
