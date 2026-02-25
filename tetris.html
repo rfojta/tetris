@@ -2,35 +2,35 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tetris JS - Pro Edition</title>
+    <title>Tetris JS - Ultimate Edition</title>
     <style>
         body {
             display: flex;
             flex-direction: column;
             align-items: center;
-            background-color: #222;
+            background-color: #1a1a1a;
             color: white;
             margin: 0;
             font-family: 'Segoe UI', sans-serif;
             padding-top: 20px;
         }
         .game-container { display: flex; gap: 20px; align-items: flex-start; }
-        .side-panel { display: flex; flex-direction: column; gap: 20px; width: 150px; }
+        .side-panel { display: flex; flex-direction: column; gap: 15px; width: 160px; }
         
         .stat-box {
-            background: #333;
-            padding: 10px;
+            background: #2a2a2a;
+            padding: 12px;
             border-radius: 8px;
             text-align: center;
-            border: 1px solid #444;
+            border: 1px solid #3d3d3d;
         }
-        .stat-label { font-size: 12px; color: #aaa; text-transform: uppercase; }
-        .stat-value { font-size: 20px; font-weight: bold; color: #fff; }
+        .stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-value { font-size: 22px; font-weight: bold; color: #00d4ff; }
 
-        table { border-collapse: collapse; background-color: #111; border: 4px solid #444; }
-        td { width: 25px; height: 25px; border: 1px solid #222; }
+        table { border-collapse: collapse; background-color: #000; border: 4px solid #333; }
+        td { width: 28px; height: 28px; border: 1px solid #111; position: relative; }
 
-        #preview-table { border: 2px solid #444; margin-top: 5px; }
+        #preview-table { border: 2px solid #333; margin: 10px auto; }
         #preview-table td { width: 20px; height: 20px; }
 
         /* Piece Colors */
@@ -42,12 +42,19 @@
         .color-5 { background-color: #0000f0; border: 2px inset #7070ff; }
         .color-6 { background-color: #f00000; border: 2px inset #ff7070; }
 
-        .controls { margin-top: 20px; }
-        button { padding: 10px 20px; cursor: pointer; background: #555; color: white; border: none; border-radius: 4px; font-weight: bold; }
-        button:hover { background: #777; }
+        /* Ghost Piece Styling */
+        .ghost { 
+            opacity: 0.3; 
+            border: 1px dashed rgba(255,255,255,0.5) !important;
+            background-image: linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%);
+        }
 
-        #high-scores { list-style: none; padding: 0; text-align: left; font-size: 14px; }
-        #high-scores li { display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px solid #444; }
+        .controls-hint { font-size: 11px; color: #666; margin-top: 10px; line-height: 1.4; }
+        button { padding: 10px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #00d4ff; color: #000; }
+
+        #high-scores { list-style: none; padding: 0; text-align: left; font-size: 13px; }
+        #high-scores li { display: flex; justify-content: space-between; margin-bottom: 4px; padding: 2px 0; border-bottom: 1px solid #333; }
     </style>
 </head>
 <body>
@@ -77,6 +84,12 @@
             </div>
             <button onclick="resetGame()">New Game</button>
             <button id="pauseBtn" onclick="togglePause()">Pause (Esc)</button>
+            
+            <div class="controls-hint">
+                Arrows: Move/Rotate<br>
+                Space: Hard Drop<br>
+                Esc: Pause
+            </div>
         </div>
     </div>
 
@@ -122,6 +135,7 @@ var field = {
         this.updateScore(0);
         this.content = Array.from({length: this.width}, () => Array(this.height).fill(false));
         this.nextPieceData = pieces[Math.floor(Math.random() * pieces.length)];
+        document.getElementById('level').innerText = this.level;
     },
 
     renderGrids: function() {
@@ -185,7 +199,6 @@ var field = {
             }
         }
         if (linesCleared > 0) {
-            // Scoring: 1: 100, 2: 300, 3: 500, 4: 800
             const bonus = [0, 100, 300, 500, 800];
             this.updateScore(bonus[linesCleared] * this.level);
         }
@@ -207,12 +220,10 @@ var field = {
     updateScore: function(pts) {
         this.score += pts;
         document.getElementById('score').innerText = this.score;
-        
-        // Level logic: every 1000 pts
         let newLevel = Math.floor(this.score / 1000) + 1;
         if (newLevel > this.level) {
             this.level = newLevel;
-            this.speed = Math.max(100, 500 - (this.level * 40));
+            this.speed = Math.max(80, 500 - (this.level * 35));
             document.getElementById('level').innerText = this.level;
         }
     },
@@ -220,21 +231,21 @@ var field = {
     gameOver: function() {
         this.isRunning = false;
         this.saveHighScore(this.score);
-        alert("Game Over! Score: " + this.score);
+        alert("GAME OVER\nFinal Score: " + this.score);
         this.updateHighScoresUI();
     },
 
     saveHighScore: function(score) {
-        let scores = JSON.parse(localStorage.getItem('tetris_scores') || "[]");
+        let scores = JSON.parse(localStorage.getItem('tetris_scores_v2') || "[]");
         scores.push(score);
         scores.sort((a, b) => b - a);
-        localStorage.setItem('tetris_scores', JSON.stringify(scores.slice(0, 5)));
+        localStorage.setItem('tetris_scores_v2', JSON.stringify(scores.slice(0, 5)));
     },
 
     updateHighScoresUI: function() {
-        const scores = JSON.parse(localStorage.getItem('tetris_scores') || "[]");
+        const scores = JSON.parse(localStorage.getItem('tetris_scores_v2') || "[]");
         const list = document.getElementById('high-scores');
-        list.innerHTML = scores.map((s, i) => `<li><span>#${i+1}</span> <span>${s}</span></li>`).join('');
+        list.innerHTML = scores.length ? scores.map((s, i) => `<li><span>#${i+1}</span> <span>${s}</span></li>`).join('') : "No scores yet";
     }
 };
 
@@ -288,6 +299,14 @@ function Piece(shape, colorIndex, field) {
         return true;
     };
 
+    this.getGhostY = function() {
+        let ghostY = this.y;
+        while (this.canMove(0, (ghostY - this.y) + 1)) {
+            ghostY++;
+        }
+        return ghostY;
+    };
+
     this.move = function(dx, dy) {
         if (this.canMove(dx, dy)) {
             this.unmarkMe();
@@ -300,7 +319,7 @@ function Piece(shape, colorIndex, field) {
 
     this.hardDrop = function() {
         this.unmarkMe();
-        while(this.canMove(0, 1)) this.y++;
+        this.y = this.getGhostY();
         this.markMe();
         this.fix();
         this.field.checkLines();
@@ -310,16 +329,38 @@ function Piece(shape, colorIndex, field) {
     
     this.markMe = function() {
         let {w, h} = this.dim();
-        for(let y = 0; y < h; y++)
-            for(let x = 0; x < w; x++)
-                if (this.shapeState(x, y)) this.field.table.rows[this.y+y].cells[this.x+x].className = 'color-'+this.colorIndex;
+        let gy = this.getGhostY();
+        // Draw Ghost
+        for(let y = 0; y < h; y++) {
+            for(let x = 0; x < w; x++) {
+                if (this.shapeState(x, y)) {
+                    let cell = this.field.table.rows[gy+y].cells[this.x+x];
+                    cell.classList.add('color-' + this.colorIndex, 'ghost');
+                }
+            }
+        }
+        // Draw Piece
+        for(let y = 0; y < h; y++) {
+            for(let x = 0; x < w; x++) {
+                if (this.shapeState(x, y)) {
+                    let cell = this.field.table.rows[this.y+y].cells[this.x+x];
+                    cell.className = 'color-' + this.colorIndex; // overwrites ghost
+                }
+            }
+        }
     };
 
     this.unmarkMe = function() {
         let {w, h} = this.dim();
-        for(let y = 0; y < h; y++)
-            for(let x = 0; x < w; x++)
-                if (this.shapeState(x, y)) this.field.table.rows[this.y+y].cells[this.x+x].className = "";
+        let gy = this.getGhostY();
+        for(let y = 0; y < h; y++) {
+            for(let x = 0; x < w; x++) {
+                if (this.shapeState(x, y)) {
+                    this.field.table.rows[this.y+y].cells[this.x+x].className = "";
+                    this.field.table.rows[gy+y].cells[this.x+x].className = "";
+                }
+            }
+        }
     };
     
     this.fix = function() {
@@ -335,6 +376,7 @@ function Piece(shape, colorIndex, field) {
 }
 
 function togglePause() {
+    if (!field.isRunning) return;
     field.isPaused = !field.isPaused;
     document.getElementById('pauseBtn').innerText = field.isPaused ? 'Resume' : 'Pause (Esc)';
     if (!field.isPaused) field.step();
