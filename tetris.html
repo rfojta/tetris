@@ -2,80 +2,115 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tetris JS</title>
+    <title>Tetris JS - Enhanced</title>
     <style>
         body {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
+            justify-content: center;
             height: 100vh;
             background-color: #f0f0f0;
             margin: 0;
-            font-family: sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        button {
+            padding: 8px 15px;
+            cursor: pointer;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover { background-color: #555; }
+        .score-board {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
         }
         table {
             border-collapse: collapse;
             background-color: white;
             box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            border: 2px solid #333;
         }
         td {
-            width: 30px;
-            height: 30px;
+            width: 25px;
+            height: 25px;
             border: 1px solid #eee;
         }
         .black { 
             background-color: #333; 
             border: 1px solid #000;
         }
+        .paused-overlay {
+            position: absolute;
+            font-size: 40px;
+            color: rgba(0,0,0,0.5);
+            pointer-events: none;
+            display: none;
+        }
     </style>
 </head>
 <body>
 
+    <div class="score-board">Score: <span id="score">0</span></div>
+    
+    <div class="controls">
+        <button onclick="resetGame()">New Game</button>
+        <button id="pauseBtn" onclick="togglePause()">Pause</button>
+    </div>
+
+    <div id="pauseLabel" class="paused-overlay">PAUSED</div>
     <table id="world"></table>
 
 <script type="text/javascript">
-/**
- * PIECE DEFINITIONS
- * Representations of Tetris blocks
- */
 const pieces = [
-    ['xxxx'], 
-    [' x ', 'xxx'], 
-    [' xx', 'xx '], 
-    ['xx', 'xx'], 
-    ['  x','xxx'], 
-    ['x  ','xxx']
+    ['xxxx'], [' x ', 'xxx'], [' xx', 'xx '], 
+    ['xx', 'xx'], ['  x','xxx'], ['x  ','xxx']
 ];
 
-/**
- * GAME FIELD OBJECT
- */
 var field = {
     content: [],
     width: 10,
     height: 20,
     piece: null,
     table: null,
-    speed: 300,
+    speed: 400,
     isRunning: false,
+    isPaused: false,
+    score: 0,
+    timer: null,
     
     init: function(tableElement) {
         this.table = tableElement;
-        this.table.innerHTML = ""; // Clear table
-        for(var y = 0; y < this.height; y++) {
-            var row = document.createElement('tr');
-            for(var x = 0; x < this.width; x++) {
-                var cell = document.createElement('td');
-                row.appendChild(cell);
-            }
-            this.table.appendChild(row);
-        }
+        this.resetInternalState();
+        this.renderTable();
+    },
 
+    resetInternalState: function() {
+        this.score = 0;
+        this.updateScore(0);
+        this.isPaused = false;
+        this.content = [];
         for(var i = 0; i < this.width; i++) {
             this.content[i] = [];
-            for(var j = 0; j < this.height; j++)  {
-                this.content[i][j] = false;
-            }
+            for(var j = 0; j < this.height; j++) this.content[i][j] = false;
+        }
+    },
+
+    renderTable: function() {
+        this.table.innerHTML = "";
+        for(var y = 0; y < this.height; y++) {
+            var row = document.createElement('tr');
+            for(var x = 0; x < this.width; x++) row.appendChild(document.createElement('td'));
+            this.table.appendChild(row);
         }
     },
     
@@ -83,7 +118,7 @@ var field = {
         var shapeIdx = Math.floor(Math.random() * pieces.length);
         this.piece = new Piece(pieces[shapeIdx], this);
         if (!this.piece.canMove(0, 0)) {
-            alert("Game Over!");
+            alert("Game Over! Final Score: " + this.score);
             this.isRunning = false;
             return false;
         }
@@ -92,17 +127,54 @@ var field = {
     },
 
     step: function() {
-        if (!this.isRunning) return;
+        if (!this.isRunning || this.isPaused) return;
 
         if (this.piece) {
             if (!this.piece.move(0, 1)) {
                 this.piece.fix();
+                this.checkLines();
                 this.piece = null;
-                this.addPiece();
+                if(!this.addPiece()) return;
             }
         }
-        
-        setTimeout(() => { this.step(); }, this.speed);
+        this.timer = setTimeout(() => { this.step(); }, this.speed);
+    },
+
+    checkLines: function() {
+        var linesCleared = 0;
+        for (var y = this.height - 1; y >= 0; y--) {
+            var isFull = true;
+            for (var x = 0; x < this.width; x++) {
+                if (!this.content[x][y]) { isFull = false; break; }
+            }
+            if (isFull) {
+                linesCleared++;
+                this.removeLine(y);
+                y++; // Re-check same row index after shift
+            }
+        }
+        if (linesCleared > 0) this.updateScore(linesCleared * 100);
+    },
+
+    removeLine: function(yLine) {
+        for (var y = yLine; y > 0; y--) {
+            for (var x = 0; x < this.width; x++) {
+                this.content[x][y] = this.content[x][y-1];
+                var cell = this.getCell(x, y);
+                var upperCell = this.getCell(x, y-1);
+                cell.className = upperCell.className;
+            }
+        }
+        // Clear top line
+        for (var x = 0; x < this.width; x++) {
+            this.content[x][0] = false;
+            this.unblack(x, 0);
+        }
+    },
+
+    updateScore: function(pts) {
+        this.score += pts;
+        document.getElementById('score').innerText = this.score;
     },
     
     run: function() {
@@ -110,7 +182,7 @@ var field = {
         this.addPiece();
         this.step();
     },
-    
+
     getCell: function(x, y) {
         if (y < 0 || y >= this.height || x < 0 || x >= this.width) return null;
         return this.table.rows[y].cells[x];
@@ -127,9 +199,6 @@ var field = {
     }
 };
 
-/**
- * PIECE CONSTRUCTOR
- */
 function Piece(shape, field) {
     this.shape = shape;
     this.field = field;
@@ -141,9 +210,7 @@ function Piece(shape, field) {
         this.unmarkMe();
         var oldRot = this.rotation;
         this.rotation = (this.rotation + 1) % 4;
-        if (!this.canMove(0, 0)) {
-            this.rotation = oldRot; // Undo if hits wall
-        }
+        if (!this.canMove(0, 0)) this.rotation = oldRot;
         this.markMe();
     };
         
@@ -158,16 +225,10 @@ function Piece(shape, field) {
                 case 3: return this.shape[x] && this.shape[x][lx - y] === 'x';
             }
         } catch(e) { return false; }
-        return false;
     };
     
-    this.getWidth = function() {
-        return (this.rotation % 2 === 0) ? this.shape[0].length : this.shape.length;
-    };
-            
-    this.getHeight = function() {
-        return (this.rotation % 2 === 0) ? this.shape.length : this.shape[0].length;
-    };
+    this.getWidth = function() { return (this.rotation % 2 === 0) ? this.shape[0].length : this.shape.length; };
+    this.getHeight = function() { return (this.rotation % 2 === 0) ? this.shape.length : this.shape[0].length; };
 
     this.canMove = function(ax, ay) {
         for(var y = 0; y < this.getHeight(); y++) {
@@ -193,6 +254,16 @@ function Piece(shape, field) {
         }
         return false;
     };
+
+    this.hardDrop = function() {
+        this.unmarkMe();
+        while(this.canMove(0, 1)) { this.y++; }
+        this.markMe();
+        this.fix();
+        this.field.checkLines();
+        this.field.piece = null;
+        this.field.addPiece();
+    };
     
     this.markMe = function() {
        for(var y = 0; y < this.getHeight(); y++)
@@ -216,23 +287,36 @@ function Piece(shape, field) {
                }
            }
        }
-       // Check for completed lines could go here!
     };
 }
 
-// Start Game
+function togglePause() {
+    field.isPaused = !field.isPaused;
+    document.getElementById('pauseLabel').style.display = field.isPaused ? 'block' : 'none';
+    document.getElementById('pauseBtn').innerText = field.isPaused ? 'Resume' : 'Pause';
+    if (!field.isPaused) field.step();
+}
+
+function resetGame() {
+    clearTimeout(field.timer);
+    field.init(document.getElementById('world'));
+    field.run();
+}
+
 window.onload = function() {
-    var worldTable = document.getElementById('world');
-    field.init(worldTable);
+    field.init(document.getElementById('world'));
     field.run();
 
     window.onkeydown = function(event) {
-        if (!field.piece) return;
+        if (event.keyCode === 27) { togglePause(); return; }
+        if (!field.piece || field.isPaused) return;
+        
         switch(event.keyCode) {
             case 37: field.piece.move(-1, 0); break; // Left
             case 39: field.piece.move(1, 0);  break; // Right
             case 40: field.piece.move(0, 1);  break; // Down
-            case 38: field.piece.rotate();    break; // Up (Rotate)
+            case 38: field.piece.rotate();    break; // Up
+            case 32: field.piece.hardDrop();  break; // Space
         }
     };
 };
