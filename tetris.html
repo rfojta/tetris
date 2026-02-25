@@ -2,68 +2,85 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tetris JS - Full Color</title>
+    <title>Tetris JS - Pro Edition</title>
     <style>
         body {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background-color: #f0f0f0;
+            background-color: #222;
+            color: white;
             margin: 0;
             font-family: 'Segoe UI', sans-serif;
+            padding-top: 20px;
         }
-        .controls { margin-bottom: 15px; display: flex; gap: 10px; }
-        button { padding: 8px 15px; cursor: pointer; background-color: #333; color: white; border: none; border-radius: 4px; }
-        .score-board { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+        .game-container { display: flex; gap: 20px; align-items: flex-start; }
+        .side-panel { display: flex; flex-direction: column; gap: 20px; width: 150px; }
         
-        table {
-            border-collapse: collapse;
-            background-color: #fff;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            border: 2px solid #333;
+        .stat-box {
+            background: #333;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #444;
         }
-        td {
-            width: 25px;
-            height: 25px;
-            border: 1px solid #eee;
-        }
+        .stat-label { font-size: 12px; color: #aaa; text-transform: uppercase; }
+        .stat-value { font-size: 20px; font-weight: bold; color: #fff; }
+
+        table { border-collapse: collapse; background-color: #111; border: 4px solid #444; }
+        td { width: 25px; height: 25px; border: 1px solid #222; }
+
+        #preview-table { border: 2px solid #444; margin-top: 5px; }
+        #preview-table td { width: 20px; height: 20px; }
 
         /* Piece Colors */
-        .color-0 { background-color: #00f0f0; border: 2px inset #70ffff; } /* I */
-        .color-1 { background-color: #a000f0; border: 2px inset #e070ff; } /* T */
-        .color-2 { background-color: #00f000; border: 2px inset #70ff70; } /* S */
-        .color-3 { background-color: #f0f000; border: 2px inset #ffff70; } /* O */
-        .color-4 { background-color: #f0a000; border: 2px inset #ffcf70; } /* L */
-        .color-5 { background-color: #0000f0; border: 2px inset #7070ff; } /* J */
-        .color-6 { background-color: #f00000; border: 2px inset #ff7070; } /* Z */
+        .color-0 { background-color: #00f0f0; border: 2px inset #70ffff; }
+        .color-1 { background-color: #a000f0; border: 2px inset #e070ff; }
+        .color-2 { background-color: #00f000; border: 2px inset #70ff70; }
+        .color-3 { background-color: #f0f000; border: 2px inset #ffff70; }
+        .color-4 { background-color: #f0a000; border: 2px inset #ffcf70; }
+        .color-5 { background-color: #0000f0; border: 2px inset #7070ff; }
+        .color-6 { background-color: #f00000; border: 2px inset #ff7070; }
 
-        .paused-overlay {
-            position: absolute;
-            font-size: 40px;
-            font-weight: bold;
-            color: rgba(0,0,0,0.3);
-            pointer-events: none;
-            display: none;
-            z-index: 10;
-        }
+        .controls { margin-top: 20px; }
+        button { padding: 10px 20px; cursor: pointer; background: #555; color: white; border: none; border-radius: 4px; font-weight: bold; }
+        button:hover { background: #777; }
+
+        #high-scores { list-style: none; padding: 0; text-align: left; font-size: 14px; }
+        #high-scores li { display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px solid #444; }
     </style>
 </head>
 <body>
 
-    <div class="score-board">Score: <span id="score">0</span></div>
-    
-    <div class="controls">
-        <button onclick="resetGame()">New Game</button>
-        <button id="pauseBtn" onclick="togglePause()">Pause</button>
+    <div class="game-container">
+        <div class="side-panel">
+            <div class="stat-box">
+                <div class="stat-label">Level</div>
+                <div id="level" class="stat-value">1</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Score</div>
+                <div id="score" class="stat-value">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">High Scores</div>
+                <ul id="high-scores"></ul>
+            </div>
+        </div>
+
+        <table id="world"></table>
+
+        <div class="side-panel">
+            <div class="stat-box">
+                <div class="stat-label">Next</div>
+                <table id="preview-table"></table>
+            </div>
+            <button onclick="resetGame()">New Game</button>
+            <button id="pauseBtn" onclick="togglePause()">Pause (Esc)</button>
+        </div>
     </div>
 
-    <div id="pauseLabel" class="paused-overlay">PAUSED</div>
-    <table id="world"></table>
-
-<script type="text/javascript">
-// Added color indices to pieces
+<script>
 const pieces = [
     { shape: ['xxxx'], color: 0 }, 
     { shape: [' x ', 'xxx'], color: 1 }, 
@@ -75,58 +92,78 @@ const pieces = [
 ];
 
 var field = {
-    content: [], // Now stores the color index or false
+    content: [],
     width: 10,
     height: 20,
     piece: null,
+    nextPieceData: null,
     table: null,
-    speed: 400,
+    previewTable: null,
+    speed: 500,
+    level: 1,
     isRunning: false,
     isPaused: false,
     score: 0,
     timer: null,
     
-    init: function(tableElement) {
-        this.table = tableElement;
+    init: function() {
+        this.table = document.getElementById('world');
+        this.previewTable = document.getElementById('preview-table');
         this.resetInternalState();
-        this.renderTable();
+        this.renderGrids();
+        this.updateHighScoresUI();
     },
 
     resetInternalState: function() {
         this.score = 0;
-        this.updateScore(0);
+        this.level = 1;
+        this.speed = 500;
         this.isPaused = false;
-        this.content = [];
-        for(var i = 0; i < this.width; i++) {
-            this.content[i] = [];
-            for(var j = 0; j < this.height; j++) this.content[i][j] = false;
-        }
+        this.updateScore(0);
+        this.content = Array.from({length: this.width}, () => Array(this.height).fill(false));
+        this.nextPieceData = pieces[Math.floor(Math.random() * pieces.length)];
     },
 
-    renderTable: function() {
+    renderGrids: function() {
         this.table.innerHTML = "";
-        for(var y = 0; y < this.height; y++) {
-            var row = document.createElement('tr');
-            for(var x = 0; x < this.width; x++) row.appendChild(document.createElement('td'));
-            this.table.appendChild(row);
+        for(let y = 0; y < this.height; y++) {
+            let row = this.table.insertRow();
+            for(let x = 0; x < this.width; x++) row.insertCell();
+        }
+        this.previewTable.innerHTML = "";
+        for(let y = 0; y < 4; y++) {
+            let row = this.previewTable.insertRow();
+            for(let x = 0; x < 4; x++) row.insertCell();
         }
     },
     
     addPiece: function() {
-        var pData = pieces[Math.floor(Math.random() * pieces.length)];
+        const pData = this.nextPieceData;
+        this.nextPieceData = pieces[Math.floor(Math.random() * pieces.length)];
+        this.drawPreview();
+
         this.piece = new Piece(pData.shape, pData.color, this);
         if (!this.piece.canMove(0, 0)) {
-            alert("Game Over! Final Score: " + this.score);
-            this.isRunning = false;
+            this.gameOver();
             return false;
         }
         this.piece.markMe();
         return true;
     },
 
+    drawPreview: function() {
+        for(let y=0; y<4; y++) {
+            for(let x=0; x<4; x++) {
+                this.previewTable.rows[y].cells[x].className = "";
+                if(this.nextPieceData.shape[y] && this.nextPieceData.shape[y][x] === 'x') {
+                    this.previewTable.rows[y].cells[x].className = 'color-' + this.nextPieceData.color;
+                }
+            }
+        }
+    },
+
     step: function() {
         if (!this.isRunning || this.isPaused) return;
-
         if (this.piece) {
             if (!this.piece.move(0, 1)) {
                 this.piece.fix();
@@ -139,60 +176,65 @@ var field = {
     },
 
     checkLines: function() {
-        var linesCleared = 0;
-        for (var y = this.height - 1; y >= 0; y--) {
-            var isFull = true;
-            for (var x = 0; x < this.width; x++) {
-                if (this.content[x][y] === false) { isFull = false; break; }
-            }
-            if (isFull) {
+        let linesCleared = 0;
+        for (let y = this.height - 1; y >= 0; y--) {
+            if (this.content.every(col => col[y] !== false)) {
                 linesCleared++;
                 this.removeLine(y);
                 y++; 
             }
         }
-        if (linesCleared > 0) this.updateScore(linesCleared * 100);
+        if (linesCleared > 0) {
+            // Scoring: 1: 100, 2: 300, 3: 500, 4: 800
+            const bonus = [0, 100, 300, 500, 800];
+            this.updateScore(bonus[linesCleared] * this.level);
+        }
     },
 
     removeLine: function(yLine) {
-        for (var y = yLine; y > 0; y--) {
-            for (var x = 0; x < this.width; x++) {
+        for (let y = yLine; y > 0; y--) {
+            for (let x = 0; x < this.width; x++) {
                 this.content[x][y] = this.content[x][y-1];
-                var cell = this.getCell(x, y);
-                var upperCell = this.getCell(x, y-1);
-                cell.className = upperCell.className;
+                this.table.rows[y].cells[x].className = this.table.rows[y-1].cells[x].className;
             }
         }
-        for (var x = 0; x < this.width; x++) {
+        for (let x = 0; x < this.width; x++) {
             this.content[x][0] = false;
-            this.getCell(x, 0).className = '';
+            this.table.rows[0].cells[x].className = "";
         }
     },
 
     updateScore: function(pts) {
         this.score += pts;
         document.getElementById('score').innerText = this.score;
-    },
-    
-    run: function() {
-        this.isRunning = true;
-        this.addPiece();
-        this.step();
+        
+        // Level logic: every 1000 pts
+        let newLevel = Math.floor(this.score / 1000) + 1;
+        if (newLevel > this.level) {
+            this.level = newLevel;
+            this.speed = Math.max(100, 500 - (this.level * 40));
+            document.getElementById('level').innerText = this.level;
+        }
     },
 
-    getCell: function(x, y) {
-        if (y < 0 || y >= this.height || x < 0 || x >= this.width) return null;
-        return this.table.rows[y].cells[x];
+    gameOver: function() {
+        this.isRunning = false;
+        this.saveHighScore(this.score);
+        alert("Game Over! Score: " + this.score);
+        this.updateHighScoresUI();
     },
-    
-    paint: function(x, y, colorIndex) {
-        var cell = this.getCell(x, y);
-        if (cell) cell.className = 'color-' + colorIndex;
+
+    saveHighScore: function(score) {
+        let scores = JSON.parse(localStorage.getItem('tetris_scores') || "[]");
+        scores.push(score);
+        scores.sort((a, b) => b - a);
+        localStorage.setItem('tetris_scores', JSON.stringify(scores.slice(0, 5)));
     },
-    
-    unpaint: function(x, y) {
-        var cell = this.getCell(x, y);
-        if (cell) cell.className = '';
+
+    updateHighScoresUI: function() {
+        const scores = JSON.parse(localStorage.getItem('tetris_scores') || "[]");
+        const list = document.getElementById('high-scores');
+        list.innerHTML = scores.map((s, i) => `<li><span>#${i+1}</span> <span>${s}</span></li>`).join('');
     }
 };
 
@@ -200,21 +242,21 @@ function Piece(shape, colorIndex, field) {
     this.shape = shape;
     this.colorIndex = colorIndex;
     this.field = field;
-    this.x = 4;
+    this.x = 3;
     this.y = 0;
     this.rotation = 0;
     
     this.rotate = function() {
         this.unmarkMe();
-        var oldRot = this.rotation;
+        let oldRot = this.rotation;
         this.rotation = (this.rotation + 1) % 4;
         if (!this.canMove(0, 0)) this.rotation = oldRot;
         this.markMe();
     };
         
     this.shapeState = function(x, y) {   
-        var lx = this.shape[0].length - 1;
-        var ly = this.shape.length - 1;  
+        let lx = this.shape[0].length - 1;
+        let ly = this.shape.length - 1;  
         try {
             switch(this.rotation) {
                 case 0: return this.shape[y] && this.shape[y][x] === 'x';
@@ -225,15 +267,19 @@ function Piece(shape, colorIndex, field) {
         } catch(e) { return false; }
     };
     
-    this.getWidth = function() { return (this.rotation % 2 === 0) ? this.shape[0].length : this.shape.length; };
-    this.getHeight = function() { return (this.rotation % 2 === 0) ? this.shape.length : this.shape[0].length; };
+    this.dim = function() {
+        return (this.rotation % 2 === 0) ? 
+            { w: this.shape[0].length, h: this.shape.length } : 
+            { w: this.shape.length, h: this.shape[0].length };
+    };
 
     this.canMove = function(ax, ay) {
-        for(var y = 0; y < this.getHeight(); y++) {
-            for(var x = 0; x < this.getWidth(); x++) {
+        let {w, h} = this.dim();
+        for(let y = 0; y < h; y++) {
+            for(let x = 0; x < w; x++) {
                 if (this.shapeState(x, y)) {
-                    var nx = this.x + ax + x;
-                    var ny = this.y + ay + y;
+                    let nx = this.x + ax + x;
+                    let ny = this.y + ay + y;
                     if (nx < 0 || nx >= this.field.width || ny >= this.field.height) return false;
                     if (ny >= 0 && this.field.content[nx][ny] !== false) return false;
                 }
@@ -245,8 +291,7 @@ function Piece(shape, colorIndex, field) {
     this.move = function(dx, dy) {
         if (this.canMove(dx, dy)) {
             this.unmarkMe();
-            this.x += dx;
-            this.y += dy;    
+            this.x += dx; this.y += dy;    
             this.markMe();
             return true;
         }
@@ -255,7 +300,7 @@ function Piece(shape, colorIndex, field) {
 
     this.hardDrop = function() {
         this.unmarkMe();
-        while(this.canMove(0, 1)) { this.y++; }
+        while(this.canMove(0, 1)) this.y++;
         this.markMe();
         this.fix();
         this.field.checkLines();
@@ -264,60 +309,56 @@ function Piece(shape, colorIndex, field) {
     };
     
     this.markMe = function() {
-       for(var y = 0; y < this.getHeight(); y++)
-           for(var x = 0; x < this.getWidth(); x++)
-               if (this.shapeState(x, y)) this.field.paint(this.x + x, this.y + y, this.colorIndex);
+        let {w, h} = this.dim();
+        for(let y = 0; y < h; y++)
+            for(let x = 0; x < w; x++)
+                if (this.shapeState(x, y)) this.field.table.rows[this.y+y].cells[this.x+x].className = 'color-'+this.colorIndex;
     };
 
     this.unmarkMe = function() {
-       for(var y = 0; y < this.getHeight(); y++)
-           for(var x = 0; x < this.getWidth(); x++)
-               if (this.shapeState(x, y)) this.field.unpaint(this.x + x, this.y + y);
+        let {w, h} = this.dim();
+        for(let y = 0; y < h; y++)
+            for(let x = 0; x < w; x++)
+                if (this.shapeState(x, y)) this.field.table.rows[this.y+y].cells[this.x+x].className = "";
     };
     
     this.fix = function() {
-       for(var y = 0; y < this.getHeight(); y++) {
-           for(var x = 0; x < this.getWidth(); x++) {
-               if (this.shapeState(x, y)) {
-                   var fx = this.x + x;
-                   var fy = this.y + y;
-                   if (fy >= 0) {
-                       this.field.content[fx][fy] = this.colorIndex;
-                       this.field.paint(fx, fy, this.colorIndex);
-                   }
-               }
-           }
-       }
+        let {w, h} = this.dim();
+        for(let y = 0; y < h; y++) {
+            for(let x = 0; x < w; x++) {
+                if (this.shapeState(x, y)) {
+                    if (this.y+y >= 0) this.field.content[this.x+x][this.y+y] = this.colorIndex;
+                }
+            }
+        }
     };
 }
 
 function togglePause() {
     field.isPaused = !field.isPaused;
-    document.getElementById('pauseLabel').style.display = field.isPaused ? 'block' : 'none';
-    document.getElementById('pauseBtn').innerText = field.isPaused ? 'Resume' : 'Pause';
+    document.getElementById('pauseBtn').innerText = field.isPaused ? 'Resume' : 'Pause (Esc)';
     if (!field.isPaused) field.step();
 }
 
 function resetGame() {
     clearTimeout(field.timer);
-    field.init(document.getElementById('world'));
-    field.run();
+    field.init();
+    field.isRunning = true;
+    field.addPiece();
+    field.step();
 }
 
-window.onload = function() {
-    field.init(document.getElementById('world'));
-    field.run();
-
-    window.onkeydown = function(event) {
-        if (event.keyCode === 27) { togglePause(); return; }
+window.onload = () => {
+    field.init();
+    window.onkeydown = (e) => {
+        if (e.keyCode === 27) togglePause();
         if (!field.piece || field.isPaused) return;
-        
-        switch(event.keyCode) {
-            case 37: field.piece.move(-1, 0); break; // Left
-            case 39: field.piece.move(1, 0);  break; // Right
-            case 40: field.piece.move(0, 1);  break; // Down
-            case 38: field.piece.rotate();    break; // Up (Rotate)
-            case 32: field.piece.hardDrop();  break; // Space
+        switch(e.keyCode) {
+            case 37: field.piece.move(-1, 0); break;
+            case 39: field.piece.move(1, 0);  break;
+            case 40: field.piece.move(0, 1);  break;
+            case 38: field.piece.rotate();    break;
+            case 32: e.preventDefault(); field.piece.hardDrop(); break;
         }
     };
 };
