@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tetris JS</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+            font-family: sans-serif;
+        }
+        table {
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+        }
+        td {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #eee;
+        }
+        .black { 
+            background-color: #333; 
+            border: 1px solid #000;
+        }
+    </style>
+</head>
+<body>
+
+    <table id="world"></table>
+
+<script type="text/javascript">
+/**
+ * PIECE DEFINITIONS
+ * Representations of Tetris blocks
+ */
+const pieces = [
+    ['xxxx'], 
+    [' x ', 'xxx'], 
+    [' xx', 'xx '], 
+    ['xx', 'xx'], 
+    ['  x','xxx'], 
+    ['x  ','xxx']
+];
+
+/**
+ * GAME FIELD OBJECT
+ */
+var field = {
+    content: [],
+    width: 10,
+    height: 20,
+    piece: null,
+    table: null,
+    speed: 300,
+    isRunning: false,
+    
+    init: function(tableElement) {
+        this.table = tableElement;
+        this.table.innerHTML = ""; // Clear table
+        for(var y = 0; y < this.height; y++) {
+            var row = document.createElement('tr');
+            for(var x = 0; x < this.width; x++) {
+                var cell = document.createElement('td');
+                row.appendChild(cell);
+            }
+            this.table.appendChild(row);
+        }
+
+        for(var i = 0; i < this.width; i++) {
+            this.content[i] = [];
+            for(var j = 0; j < this.height; j++)  {
+                this.content[i][j] = false;
+            }
+        }
+    },
+    
+    addPiece: function() {
+        var shapeIdx = Math.floor(Math.random() * pieces.length);
+        this.piece = new Piece(pieces[shapeIdx], this);
+        if (!this.piece.canMove(0, 0)) {
+            alert("Game Over!");
+            this.isRunning = false;
+            return false;
+        }
+        this.piece.markMe();
+        return true;
+    },
+
+    step: function() {
+        if (!this.isRunning) return;
+
+        if (this.piece) {
+            if (!this.piece.move(0, 1)) {
+                this.piece.fix();
+                this.piece = null;
+                this.addPiece();
+            }
+        }
+        
+        setTimeout(() => { this.step(); }, this.speed);
+    },
+    
+    run: function() {
+        this.isRunning = true;
+        this.addPiece();
+        this.step();
+    },
+    
+    getCell: function(x, y) {
+        if (y < 0 || y >= this.height || x < 0 || x >= this.width) return null;
+        return this.table.rows[y].cells[x];
+    },
+    
+    black: function(x, y) {
+        var cell = this.getCell(x, y);
+        if (cell) cell.className = 'black';
+    },
+    
+    unblack: function(x, y) {
+        var cell = this.getCell(x, y);
+        if (cell) cell.className = '';
+    }
+};
+
+/**
+ * PIECE CONSTRUCTOR
+ */
+function Piece(shape, field) {
+    this.shape = shape;
+    this.field = field;
+    this.x = 4;
+    this.y = 0;
+    this.rotation = 0;
+    
+    this.rotate = function() {
+        this.unmarkMe();
+        var oldRot = this.rotation;
+        this.rotation = (this.rotation + 1) % 4;
+        if (!this.canMove(0, 0)) {
+            this.rotation = oldRot; // Undo if hits wall
+        }
+        this.markMe();
+    };
+        
+    this.shapeState = function(x, y) {   
+        var lx = this.shape[0].length - 1;
+        var ly = this.shape.length - 1;  
+        try {
+            switch(this.rotation) {
+                case 0: return this.shape[y] && this.shape[y][x] === 'x';
+                case 1: return this.shape[ly - x] && this.shape[ly - x][y] === 'x';
+                case 2: return this.shape[ly - y] && this.shape[ly - y][lx - x] === 'x';
+                case 3: return this.shape[x] && this.shape[x][lx - y] === 'x';
+            }
+        } catch(e) { return false; }
+        return false;
+    };
+    
+    this.getWidth = function() {
+        return (this.rotation % 2 === 0) ? this.shape[0].length : this.shape.length;
+    };
+            
+    this.getHeight = function() {
+        return (this.rotation % 2 === 0) ? this.shape.length : this.shape[0].length;
+    };
+
+    this.canMove = function(ax, ay) {
+        for(var y = 0; y < this.getHeight(); y++) {
+            for(var x = 0; x < this.getWidth(); x++) {
+                if (this.shapeState(x, y)) {
+                    var nx = this.x + ax + x;
+                    var ny = this.y + ay + y;
+                    if (nx < 0 || nx >= this.field.width || ny >= this.field.height) return false;
+                    if (ny >= 0 && this.field.content[nx][ny]) return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    this.move = function(dx, dy) {
+        if (this.canMove(dx, dy)) {
+            this.unmarkMe();
+            this.x += dx;
+            this.y += dy;    
+            this.markMe();
+            return true;
+        }
+        return false;
+    };
+    
+    this.markMe = function() {
+       for(var y = 0; y < this.getHeight(); y++)
+           for(var x = 0; x < this.getWidth(); x++)
+               if (this.shapeState(x, y)) this.field.black(this.x + x, this.y + y);
+    };
+
+    this.unmarkMe = function() {
+       for(var y = 0; y < this.getHeight(); y++)
+           for(var x = 0; x < this.getWidth(); x++)
+               if (this.shapeState(x, y)) this.field.unblack(this.x + x, this.y + y);
+    };
+    
+    this.fix = function() {
+       for(var y = 0; y < this.getHeight(); y++) {
+           for(var x = 0; x < this.getWidth(); x++) {
+               if (this.shapeState(x, y)) {
+                   var fx = this.x + x;
+                   var fy = this.y + y;
+                   if (fy >= 0) this.field.content[fx][fy] = true;
+               }
+           }
+       }
+       // Check for completed lines could go here!
+    };
+}
+
+// Start Game
+window.onload = function() {
+    var worldTable = document.getElementById('world');
+    field.init(worldTable);
+    field.run();
+
+    window.onkeydown = function(event) {
+        if (!field.piece) return;
+        switch(event.keyCode) {
+            case 37: field.piece.move(-1, 0); break; // Left
+            case 39: field.piece.move(1, 0);  break; // Right
+            case 40: field.piece.move(0, 1);  break; // Down
+            case 38: field.piece.rotate();    break; // Up (Rotate)
+        }
+    };
+};
+</script>
+</body>
+</html>
