@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="../tetris.css">
+    <script src="DIContainer.js"></script>
+    <script src="Piece.js"></script>
+    <script src="Renderer.js"></script>
+    <script src="Autopilot.js"></script>
+    <script src="TetrisEngine.js"></script>
+</head>
+<body>
+    <div class="stat-box">Score: <span id="score-val">0</span> | Level: <span id="level-val">1</span> | Auto: <span id="auto-val">3</span></div>
+    <table id="world"></table>
+    <script>
+        const container = new DIContainer();
+        container.register('renderer', new Renderer());
+        container.register('autopilot', new Autopilot());
+        
+        const game = new TetrisEngine(container);
+        game.start();
+        
+        window.addEventListener('keydown', e => {
+            if(e.key === 'a') container.get('autopilot').active = true;
+        });
+    </script>
+</body>
+</html>
