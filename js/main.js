@@ -26,7 +26,6 @@ const field = {
     autoTimeLeft: 0,
     autoInterval: null,
     isDemoMode: false,
-    isPaused: false,
 
     init() {
         this.table = document.getElementById('world');
@@ -44,9 +43,7 @@ const field = {
         this.content = Array.from({ length: this.width }, () => Array(this.height).fill(false));
         this.nextPieceData = pieces[Math.floor(Math.random() * pieces.length)];
         this.isDemoMode = false;
-        this.isPaused = false;
         document.getElementById('demo-msg').style.visibility = 'hidden';
-        document.getElementById('pause-msg').style.visibility = 'hidden';
         this.updateUI();
     },
 
@@ -70,11 +67,9 @@ const field = {
 
     startDemo() {
         this.isDemoMode = true;
-        this.isPaused = false;
         this.isAutoActive = true;
         this.isRunning = true;
         document.getElementById('demo-msg').style.visibility = 'visible';
-        document.getElementById('pause-msg').style.visibility = 'hidden';
         document.getElementById('auto-box').classList.add('auto-active');
         document.getElementById('world').classList.add('autopilot-bg');
         this.addPiece();
@@ -113,7 +108,7 @@ const field = {
     },
 
     step() {
-        if (!this.isRunning || this.isPaused) {
+        if (!this.isRunning) {
             return;
         }
 
@@ -230,9 +225,7 @@ const field = {
 
     gameOver() {
         this.isRunning = false;
-        this.isPaused = false;
         this.stopAutopilot();
-        document.getElementById('pause-msg').style.visibility = 'hidden';
         alert('Game Over! Score: ' + this.score);
     }
 };
@@ -376,28 +369,9 @@ function resetGame() {
     field.resetInternalState();
     field.renderGrids();
     field.isDemoMode = false;
-    field.isPaused = false;
     field.isRunning = true;
     field.addPiece();
-    fitBoardToViewport();
     field.step();
-}
-
-function togglePause() {
-    if (!field.isRunning || field.isDemoMode) {
-        return;
-    }
-
-    const pauseMessage = document.getElementById('pause-msg');
-    if (field.isPaused) {
-        field.isPaused = false;
-        pauseMessage.style.visibility = 'hidden';
-        field.step();
-    } else {
-        field.isPaused = true;
-        clearTimeout(field.timer);
-        pauseMessage.style.visibility = 'visible';
-    }
 }
 
 function handleGameAction(action) {
@@ -407,7 +381,7 @@ function handleGameAction(action) {
         return;
     }
 
-    if (!field.isRunning || field.isPaused || field.isAutoActive || !field.piece) {
+    if (!field.isRunning || field.isAutoActive || !field.piece) {
         return;
     }
 
@@ -459,111 +433,9 @@ function bindUi() {
             handleGameAction('drop');
         } else if (e.key.toLowerCase() === 'a') {
             handleGameAction('autopilot');
-        } else if (e.key === 'Escape') {
-            togglePause();
         }
     });
-}
-
-function bindGestures() {
-    const board = document.getElementById('world');
-    if (!board) {
-        return;
-    }
-
-    const threshold = 20;
-    const tapDistance = 12;
-    const doubleTapDelay = 280;
-    let startX = null;
-    let startY = null;
-    let moved = false;
-    let lastTapTime = 0;
-
-    const resetPointer = () => {
-        startX = null;
-        startY = null;
-        moved = false;
-    };
-
-    board.addEventListener('pointerdown', (e) => {
-        startX = e.clientX;
-        startY = e.clientY;
-        moved = false;
-    });
-
-    board.addEventListener('pointermove', (e) => {
-        if (startX === null || startY === null) {
-            return;
-        }
-        if (Math.abs(e.clientX - startX) > tapDistance || Math.abs(e.clientY - startY) > tapDistance) {
-            moved = true;
-        }
-    });
-
-    board.addEventListener('pointerup', (e) => {
-        if (startX === null || startY === null) {
-            return;
-        }
-
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        const absX = Math.abs(dx);
-        const absY = Math.abs(dy);
-
-        if (!moved || (absX < tapDistance && absY < tapDistance)) {
-            const now = Date.now();
-            if (now - lastTapTime <= doubleTapDelay) {
-                togglePause();
-                lastTapTime = 0;
-            } else {
-                lastTapTime = now;
-            }
-            resetPointer();
-            return;
-        }
-
-        if (Math.max(absX, absY) < threshold) {
-            resetPointer();
-            return;
-        }
-
-        if (absX > absY) {
-            handleGameAction(dx < 0 ? 'left' : 'right');
-        } else {
-            handleGameAction(dy < 0 ? 'rotate' : 'drop');
-        }
-
-        resetPointer();
-    });
-
-    board.addEventListener('pointercancel', resetPointer);
-}
-
-function fitBoardToViewport() {
-    const leftPanel = document.querySelector('.left-panel');
-    const rightPanel = document.querySelector('.right-panel');
-    const demoBanner = document.getElementById('demo-msg');
-    const pauseBanner = document.getElementById('pause-msg');
-    const compactLayout = window.matchMedia('(max-width: 860px), (hover: none), (pointer: coarse)').matches;
-
-    const availableWidth = compactLayout
-        ? window.innerWidth - 24
-        : window.innerWidth - (leftPanel?.offsetWidth || 120) - (rightPanel?.offsetWidth || 120) - 52;
-
-    let availableHeight = window.innerHeight - (demoBanner?.offsetHeight || 0) - (pauseBanner?.offsetHeight || 0) - 22;
-    if (compactLayout) {
-        availableHeight -= (leftPanel?.offsetHeight || 0) + (rightPanel?.offsetHeight || 0) + 24;
-    }
-
-    const cellByWidth = Math.floor(availableWidth / 10);
-    const cellByHeight = Math.floor(availableHeight / 20);
-    const cellSize = Math.max(10, Math.min(28, cellByWidth, cellByHeight));
-
-    document.documentElement.style.setProperty('--cell-size', `${cellSize}px`);
 }
 
 bindUi();
-bindGestures();
 field.init();
-fitBoardToViewport();
-window.addEventListener('resize', fitBoardToViewport);

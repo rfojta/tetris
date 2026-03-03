@@ -2,367 +2,63 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Tetris - Demo Mode & Autopilot</title>
-    <style>
-        body {
-            display: flex; flex-direction: column; align-items: center;
-            background-color: #1a1a1a; color: white; margin: 0;
-            font-family: 'Segoe UI', sans-serif; padding-top: 20px;
-        }
-        .game-container { display: flex; gap: 20px; align-items: flex-start; }
-        .side-panel { display: flex; flex-direction: column; gap: 15px; width: 160px; }
-        
-        .stat-box {
-            background: #2a2a2a; padding: 12px; border-radius: 8px;
-            text-align: center; border: 1px solid #3d3d3d; transition: 0.3s;
-        }
-        .stat-label { font-size: 11px; color: #888; text-transform: uppercase; }
-        .stat-value { font-size: 22px; font-weight: bold; color: #00d4ff; }
-        
-        /* Autopilot/Demo Active State */
-        .auto-active { border-color: #ffeb3b; box-shadow: 0 0 15px rgba(255, 235, 59, 0.4); }
-        #auto-timer { color: #ffeb3b; font-variant-numeric: tabular-nums; }
-        .demo-banner { color: #ffeb3b; font-weight: bold; font-size: 12px; margin-bottom: 5px; }
-
-        table { border-collapse: collapse; background-color: #000; border: 4px solid #333; transition: background 0.2s; }
-        .autopilot-bg { background-color: #1a1800; border-color: #ffeb3b; }
-        td { width: 28px; height: 28px; border: 1px solid #111; }
-
-        #preview-table { border: 2px solid #333; margin: 10px auto; }
-        #preview-table td { width: 18px; height: 18px; }
-
-        .color-0 { background-color: #00f0f0; border: 2px inset #70ffff; }
-        .color-1 { background-color: #a000f0; border: 2px inset #e070ff; }
-        .color-2 { background-color: #00f000; border: 2px inset #70ff70; }
-        .color-3 { background-color: #f0f000; border: 2px inset #ffff70; }
-        .color-4 { background-color: #f0a000; border: 2px inset #ffcf70; }
-        .color-5 { background-color: #0000f0; border: 2px inset #7070ff; }
-        .color-6 { background-color: #f00000; border: 2px inset #ff7070; }
-
-        button { padding: 10px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px; font-weight: bold; }
-        button:hover { background: #555; }
-    </style>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <div id="demo-msg" class="demo-banner">DEMO MODE: PRESS ANY KEY OR TAP NEW GAME TO PLAY</div>
 
-    <div id="demo-msg" class="demo-banner">DEMO MODE: PRESS ANY KEY TO PLAY</div>
     <div class="game-container">
         <div class="side-panel">
             <div class="stat-box" id="level-box">
                 <div class="stat-label">Level</div>
                 <div id="level" class="stat-value">1</div>
             </div>
+
             <div class="stat-box" id="auto-box">
                 <div class="stat-label">Autopilots (A)</div>
                 <div id="auto-count" class="stat-value">3</div>
-                <div id="auto-timer" style="font-size: 14px; display: none;">ACTIVE: 5.0s</div>
+                <div id="auto-timer">ACTIVE: 5.0s</div>
             </div>
+
             <div class="stat-box">
                 <div class="stat-label">Score</div>
                 <div id="score" class="stat-value">0</div>
             </div>
         </div>
 
-        <table id="world"></table>
+        <table id="world" aria-label="Tetris board"></table>
 
         <div class="side-panel">
             <div class="stat-box">
                 <div class="stat-label">Next</div>
-                <table id="preview-table"></table>
+                <table id="preview-table" aria-label="Next piece"></table>
             </div>
-            <button onclick="resetGame()">New Game</button>
+
+            <button id="new-game-btn" type="button">New Game</button>
+
+            <div class="controls-hint">
+                Keyboard: Arrows move/rotate, Space drops, A enables autopilot
+            </div>
+
+            <div class="mobile-controls" aria-label="Touch controls">
+                <div class="mobile-controls-row">
+                    <button class="mobile-btn" type="button" data-action="rotate">Rotate</button>
+                    <button class="mobile-btn" type="button" data-action="drop">Drop</button>
+                </div>
+                <div class="mobile-controls-row">
+                    <button class="mobile-btn" type="button" data-action="left">Left</button>
+                    <button class="mobile-btn" type="button" data-action="down">Down</button>
+                    <button class="mobile-btn" type="button" data-action="right">Right</button>
+                </div>
+                <div class="mobile-controls-row">
+                    <button class="mobile-btn" type="button" data-action="autopilot">Autopilot</button>
+                </div>
+            </div>
         </div>
     </div>
 
-<script>
-const pieces = [
-    { shape: ['xxxx'], color: 0 }, { shape: [' x ', 'xxx'], color: 1 }, 
-    { shape: [' xx', 'xx '], color: 2 }, { shape: ['xx', 'xx'], color: 3 }, 
-    { shape: ['  x','xxx'], color: 4 }, { shape: ['x  ','xxx'], color: 5 },
-    { shape: ['xx ', ' xx'], color: 6 }
-];
-
-var field = {
-    content: [], width: 10, height: 20,
-    piece: null, nextPieceData: null,
-    table: null, speed: 500, level: 1, isRunning: false,
-    score: 0, timer: null, autoCharges: 3,
-    isAutoActive: false, autoTimeLeft: 0, autoInterval: null,
-    isDemoMode: false,
-
-    init: function() {
-        this.table = document.getElementById('world');
-        this.resetInternalState();
-        this.renderGrids();
-        this.startDemo(); // Start in Demo Mode automatically
-    },
-
-    resetInternalState: function() {
-        this.score = 0; this.level = 1; this.speed = 500; this.autoCharges = 3;
-        this.content = Array.from({length: this.width}, () => Array(this.height).fill(false));
-        this.nextPieceData = pieces[Math.floor(Math.random() * pieces.length)];
-        this.isDemoMode = false;
-        document.getElementById('demo-msg').style.visibility = 'hidden';
-        this.updateUI();
-    },
-
-    renderGrids: function() {
-        this.table.innerHTML = "";
-        for(let y = 0; y < this.height; y++) {
-            let row = this.table.insertRow();
-            for(let x = 0; x < this.width; x++) row.insertCell();
-        }
-        this.previewTable = document.getElementById('preview-table');
-        this.previewTable.innerHTML = "";
-        for(let y = 0; y < 4; y++) {
-            let row = this.previewTable.insertRow();
-            for(let x = 0; x < 4; x++) row.insertCell();
-        }
-    },
-
-    startDemo: function() {
-        this.isDemoMode = true;
-        this.isAutoActive = true;
-        this.isRunning = true;
-        document.getElementById('demo-msg').style.visibility = 'visible';
-        document.getElementById('auto-box').classList.add('auto-active');
-        document.getElementById('world').classList.add('autopilot-bg');
-        this.addPiece();
-        this.step();
-    },
-
-    addPiece: function() {
-        const pData = this.nextPieceData;
-        this.nextPieceData = pieces[Math.floor(Math.random() * pieces.length)];
-        this.drawPreview();
-        this.piece = new Piece(pData.shape, pData.color, this);
-        if (!this.piece.canMove(0, 0)) { 
-            if(this.isDemoMode) { this.resetInternalState(); this.startDemo(); return; } 
-            this.gameOver(); return false; 
-        }
-        this.piece.markMe();
-        return true;
-    },
-
-    drawPreview: function() {
-        for(let y=0; y<4; y++) {
-            for(let x=0; x<4; x++) {
-                this.previewTable.rows[y].cells[x].className = "";
-                if(this.nextPieceData.shape[y] && this.nextPieceData.shape[y][x] === 'x') {
-                    this.previewTable.rows[y].cells[x].className = 'color-' + this.nextPieceData.color;
-                }
-            }
-        }
-    },
-
-    step: function() {
-        if (!this.isRunning) return;
-        if (this.isAutoActive) this.runAutoLogic();
-
-        if (this.piece) {
-            if (!this.piece.move(0, 1)) {
-                this.piece.fix();
-                this.checkLines();
-                this.piece = null;
-                if(!this.addPiece()) return;
-            }
-        }
-        this.timer = setTimeout(() => { this.step(); }, this.speed);
-    },
-
-    runAutoLogic: function() {
-        if (!this.piece) return;
-        if (!this.piece.target) this.piece.target = this.piece.calculateBestMove();
-
-        if (this.piece.rotation !== this.piece.target.rot) {
-            this.piece.rotate();
-        } else if (this.piece.x < this.piece.target.x) {
-            this.piece.move(1, 0);
-        } else if (this.piece.x > this.piece.target.x) {
-            this.piece.move(-1, 0);
-        }
-    },
-
-    startAutopilot: function() {
-        if (this.isDemoMode) return;
-        if (this.autoCharges > 0 && !this.isAutoActive) {
-            this.autoCharges--;
-            this.isAutoActive = true;
-            this.autoTimeLeft = 5.0;
-            document.getElementById('auto-box').classList.add('auto-active');
-            document.getElementById('world').classList.add('autopilot-bg');
-            document.getElementById('auto-timer').style.display = 'block';
-            this.updateUI();
-
-            this.autoInterval = setInterval(() => {
-                this.autoTimeLeft -= 0.1;
-                document.getElementById('auto-timer').innerText = `ACTIVE: ${this.autoTimeLeft.toFixed(1)}s`;
-                if (this.autoTimeLeft <= 0) this.stopAutopilot();
-            }, 100);
-        }
-    },
-
-    stopAutopilot: function() {
-        this.isAutoActive = false;
-        this.isDemoMode = false;
-        clearInterval(this.autoInterval);
-        document.getElementById('auto-box').classList.remove('auto-active');
-        document.getElementById('world').classList.remove('autopilot-bg');
-        document.getElementById('auto-timer').style.display = 'none';
-        document.getElementById('demo-msg').style.visibility = 'hidden';
-    },
-
-    checkLines: function() {
-        let cleared = 0;
-        for (let y = this.height - 1; y >= 0; y--) {
-            if (this.content.every(col => col[y] !== false)) {
-                cleared++; this.removeLine(y); y++;
-            }
-        }
-        if (cleared > 0) this.updateScore([0, 100, 300, 500, 800][cleared] * this.level);
-    },
-
-    removeLine: function(yLine) {
-        for (let y = yLine; y > 0; y--) {
-            for (let x = 0; x < this.width; x++) {
-                this.content[x][y] = this.content[x][y-1];
-                this.table.rows[y].cells[x].className = this.table.rows[y-1].cells[x].className;
-            }
-        }
-    },
-
-    updateScore: function(pts) {
-        this.score += pts;
-        let oldLvl = this.level;
-        this.level = Math.floor(this.score / 1000) + 1;
-        if (this.level > oldLvl) this.autoCharges++;
-        this.speed = Math.max(100, 500 - (this.level * 30));
-        this.updateUI();
-    },
-
-    updateUI: function() {
-        document.getElementById('score').innerText = this.score;
-        document.getElementById('level').innerText = this.level;
-        document.getElementById('auto-count').innerText = this.isDemoMode ? "∞" : this.autoCharges;
-    },
-
-    gameOver: function() {
-        this.isRunning = false; this.stopAutopilot();
-        alert("Game Over! Score: " + this.score);
-    }
-};
-
-function Piece(shape, colorIndex, field) {
-    this.shape = shape; this.colorIndex = colorIndex; this.field = field;
-    this.x = 3; this.y = 0; this.rotation = 0; this.target = null;
-
-    this.rotate = function() {
-        this.unmarkMe();
-        let old = this.rotation; this.rotation = (this.rotation + 1) % 4;
-        if (!this.canMove(0, 0)) this.rotation = old;
-        this.markMe();
-    };
-
-    this.canMove = function(ax, ay, rot = this.rotation) {
-        let {w, h} = this.dim(rot);
-        for(let y = 0; y < h; y++) {
-            for(let x = 0; x < w; x++) {
-                if (this.shapeState(x, y, rot)) {
-                    let nx = this.x + ax + x, ny = this.y + ay + y;
-                    if (nx < 0 || nx >= this.field.width || ny >= this.field.height) return false;
-                    if (ny >= 0 && this.field.content[nx][ny] !== false) return false;
-                }
-            }
-        }
-        return true;
-    };
-
-    this.shapeState = function(x, y, rot) {
-        let ly = this.shape.length - 1, lx = this.shape[0].length - 1;
-        if (rot === 0) return this.shape[y] && this.shape[y][x] === 'x';
-        if (rot === 1) return this.shape[ly - x] && this.shape[ly - x][y] === 'x';
-        if (rot === 2) return this.shape[ly - y] && this.shape[ly - y][lx - x] === 'x';
-        if (rot === 3) return this.shape[x] && this.shape[x][lx - y] === 'x';
-    };
-
-    this.dim = function(rot) {
-        return (rot % 2 === 0) ? { w: this.shape[0].length, h: this.shape.length } : { w: this.shape.length, h: this.shape[0].length };
-    };
-
-    this.move = function(dx, dy) {
-        if (this.canMove(dx, dy)) {
-            this.unmarkMe(); this.x += dx; this.y += dy; this.markMe();
-            return true;
-        }
-        return false;
-    };
-
-    this.markMe = function() {
-        let {w, h} = this.dim(this.rotation);
-        for(let y = 0; y < h; y++)
-            for(let x = 0; x < w; x++)
-                if (this.shapeState(x, y, this.rotation)) this.field.table.rows[this.y+y].cells[this.x+x].className = 'color-'+this.colorIndex;
-    };
-
-    this.unmarkMe = function() {
-        let {w, h} = this.dim(this.rotation);
-        for(let y = 0; y < h; y++)
-            for(let x = 0; x < w; x++)
-                if (this.shapeState(x, y, this.rotation)) this.field.table.rows[this.y+y].cells[this.x+x].className = "";
-    };
-
-    this.fix = function() {
-        let {w, h} = this.dim(this.rotation);
-        for(let y = 0; y < h; y++)
-            for(let x = 0; x < w; x++)
-                if (this.shapeState(x, y, this.rotation) && this.y+y >= 0) this.field.content[this.x+x][this.y+y] = this.colorIndex;
-    };
-
-    this.calculateBestMove = function() {
-        let bestX = 0, bestRot = 0, bestScore = -1000000;
-        for (let r = 0; r < 4; r++) {
-            for (let tx = -2; tx < this.field.width; tx++) {
-                let tempX = this.x; this.x = tx; 
-                if (this.canMove(0, 0, r)) {
-                    let gy = 0; while (this.canMove(0, gy + 1, r)) gy++;
-                    let score = gy * 10 - (Math.abs(tx - 4)); // Prefer middle if depth is equal
-                    if (score > bestScore) { bestScore = score; bestX = tx; bestRot = r; }
-                }
-                this.x = tempX;
-            }
-        }
-        return { x: bestX, rot: bestRot };
-    };
-}
-
-function resetGame() {
-    clearTimeout(field.timer); 
-    field.stopAutopilot();
-    field.init(); 
-    field.isDemoMode = false;
-    field.isRunning = true; 
-    field.addPiece(); 
-    field.step();
-}
-
-window.onkeydown = (e) => {
-    // If demo is running, any key press takes over control
-    if (field.isDemoMode) {
-        field.stopAutopilot();
-        resetGame();
-        return;
-    }
-
-    if (!field.isRunning || field.isAutoActive) return;
-    if (e.keyCode === 37) field.piece.move(-1, 0);
-    if (e.keyCode === 39) field.piece.move(1, 0);
-    if (e.keyCode === 40) field.piece.move(0, 1);
-    if (e.keyCode === 38) field.piece.rotate();
-    if (e.keyCode === 32) { e.preventDefault(); while(field.piece.move(0,1)); }
-    if (e.keyCode === 65) field.startAutopilot();
-};
-
-field.init();
-</script>
+    <script src="js/main.js" defer></script>
 </body>
 </html>

@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Tetris - Demo Mode & Autopilot</title>
+    <title>Tetris - Mobile Gestures</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div id="demo-msg" class="demo-banner">DEMO MODE: PRESS ANY KEY OR TAP NEW GAME TO PLAY</div>
+    <div id="demo-msg" class="status-banner demo-banner">DEMO MODE: SWIPE OR TAP NEW GAME TO PLAY</div>
+    <div id="pause-msg" class="status-banner pause-banner" aria-live="polite">PAUSED (double tap to resume)</div>
 
     <div class="game-container">
-        <div class="side-panel">
+        <div class="side-panel left-panel">
             <div class="stat-box" id="level-box">
                 <div class="stat-label">Level</div>
                 <div id="level" class="stat-value">1</div>
@@ -30,7 +31,7 @@
 
         <table id="world" aria-label="Tetris board"></table>
 
-        <div class="side-panel">
+        <div class="side-panel right-panel">
             <div class="stat-box">
                 <div class="stat-label">Next</div>
                 <table id="preview-table" aria-label="Next piece"></table>
@@ -39,22 +40,8 @@
             <button id="new-game-btn" type="button">New Game</button>
 
             <div class="controls-hint">
-                Keyboard: Arrows move/rotate, Space drops, A enables autopilot
-            </div>
-
-            <div class="mobile-controls" aria-label="Touch controls">
-                <div class="mobile-controls-row">
-                    <button class="mobile-btn" type="button" data-action="rotate">Rotate</button>
-                    <button class="mobile-btn" type="button" data-action="drop">Drop</button>
-                </div>
-                <div class="mobile-controls-row">
-                    <button class="mobile-btn" type="button" data-action="left">Left</button>
-                    <button class="mobile-btn" type="button" data-action="down">Down</button>
-                    <button class="mobile-btn" type="button" data-action="right">Right</button>
-                </div>
-                <div class="mobile-controls-row">
-                    <button class="mobile-btn" type="button" data-action="autopilot">Autopilot</button>
-                </div>
+                Swipe: left/right/up/down<br>
+                Double tap: pause/resume
             </div>
         </div>
     </div>
