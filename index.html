@@ -39,6 +39,12 @@
         .color-5 { background-color: #0000f0; border: 2px inset #7070ff; }
         .color-6 { background-color: #f00000; border: 2px inset #ff7070; }
 
+        /* Ghost piece preview */
+        .ghost {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px dashed #666;
+        }
+
         button { padding: 10px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px; font-weight: bold; }
         button:hover { background: #555; }
     </style>
@@ -71,6 +77,7 @@
                 <table id="preview-table"></table>
             </div>
             <button onclick="resetGame()">New Game</button>
+            <button onclick="togglePause()">Pause (Esc)</button>
         </div>
     </div>
 
@@ -291,17 +298,55 @@ function Piece(shape, colorIndex, field) {
 
     this.move = function(dx, dy) {
         if (this.canMove(dx, dy)) {
-            this.unmarkMe(); this.x += dx; this.y += dy; this.markMe();
+            this.unmarkMe();
+            this.x += dx;
+            this.y += dy;
+            this.markMe();
             return true;
         }
         return false;
     };
 
     this.markMe = function() {
-        let {w, h} = this.dim(this.rotation);
-        for(let y = 0; y < h; y++)
-            for(let x = 0; x < w; x++)
-                if (this.shapeState(x, y, this.rotation)) this.field.table.rows[this.y+y].cells[this.x+x].className = 'color-'+this.colorIndex;
+        const { w, h } = this.dim(this.rotation);
+
+        // Clear previous ghost cells
+        for (let gy = 0; gy < this.field.height; gy++) {
+            for (let gx = 0; gx < this.field.width; gx++) {
+                const cell = this.field.table.rows[gy].cells[gx];
+                if (cell.classList.contains('ghost')) {
+                    cell.classList.remove('ghost');
+                }
+            }
+        }
+
+        // Draw ghost piece (projected landing position)
+        let drop = 0;
+        while (this.canMove(0, drop + 1)) {
+            drop++;
+        }
+        if (drop > 0) {
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    if (this.shapeState(x, y, this.rotation)) {
+                        const gx = this.x + x;
+                        const gy = this.y + drop + y;
+                        if (gy >= 0 && this.field.content[gx][gy] === false) {
+                            this.field.table.rows[gy].cells[gx].classList.add('ghost');
+                        }
+                    }
+                }
+            }
+        }
+
+        // Draw active piece
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                if (this.shapeState(x, y, this.rotation)) {
+                    this.field.table.rows[this.y + y].cells[this.x + x].className = 'color-' + this.colorIndex;
+                }
+            }
+        }
     };
 
     this.unmarkMe = function() {
@@ -338,11 +383,25 @@ function Piece(shape, colorIndex, field) {
 function resetGame() {
     clearTimeout(field.timer); 
     field.stopAutopilot();
-    field.init(); 
+    field.resetInternalState();
+    field.renderGrids();
     field.isDemoMode = false;
     field.isRunning = true; 
     field.addPiece(); 
     field.step();
+}
+
+function togglePause() {
+    // Do not allow pausing while in demo mode
+    if (field.isDemoMode) return;
+
+    if (field.isRunning) {
+        field.isRunning = false;
+        clearTimeout(field.timer);
+    } else {
+        field.isRunning = true;
+        field.step();
+    }
 }
 
 window.onkeydown = (e) => {
@@ -350,6 +409,11 @@ window.onkeydown = (e) => {
     if (field.isDemoMode) {
         field.stopAutopilot();
         resetGame();
+        return;
+    }
+
+    if (e.keyCode === 27) { // Escape toggles pause
+        togglePause();
         return;
     }
 
