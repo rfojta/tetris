@@ -1,5 +1,5 @@
 import { Board } from './board.js';
-import { SHAPES, BLOCK_SIZE, COLORS } from './constants.js';
+import { SHAPES, BLOCK_SIZE, COLORS, COLS } from './constants.js';
 
 const canvas = document.getElementById('tetris');
 const ctx = canvas.getContext('2d');
